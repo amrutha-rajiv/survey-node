@@ -2,10 +2,11 @@ var path = require('path');
 var express = require('express');
 var morgan = require('morgan');
 var mongoose = require('mongoose');
-var urlencoded = require('body-parser').urlencoded;
+var bodyParser = require('body-parser');
 var config = require('./config');
 var voice = require('./routes/voice');
 var message = require('./routes/message');
+var bullhorn = require('./routes/bullhorn');
 var results = require('./routes/results');
 var Promise = require('bluebird');
 
@@ -36,13 +37,17 @@ if (mongoose.connections.length === 0) {
 // Create Express web app with some useful middleware
 var app = express();
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(urlencoded({ extended: true }));
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
 app.use(morgan('combined'));
 
 // Twilio Webhook routes
 app.post('/voice', voice.interview);
 app.post('/voice/:responseId/transcribe/:questionIndex', voice.transcription);
 app.post('/message', message);
+
+//Bullhorn Webhook
+app.post('/bullhorn', bullhorn);
 
 // Ajax route to aggregate response data for the UI
 app.get('/results', results);

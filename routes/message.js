@@ -4,6 +4,7 @@ var survey = require('../survey_data');
 
 // Handle SMS submissions
 module.exports = function(request, response) {
+    console.log('message body', request.body);
     var phone = request.body.From;
     var input = request.body.Body;
 
@@ -43,6 +44,9 @@ module.exports = function(request, response) {
     function handleNextQuestion(err, surveyResponse, questionIndex) {
         var question = survey[questionIndex];
         var responseMessage = '';
+        let candidateName = 'Jane';
+        let jobTitle = 'Software Engineer';
+        let companyName = 'Blizzard Entertainment';
 
         if (err || !surveyResponse) {
             return respond('Terribly sorry, but an error has occurred. '
@@ -51,12 +55,12 @@ module.exports = function(request, response) {
 
         // If question is null, we're done!
         if (!question) {
-            return respond('Thank you for taking this survey. Goodbye!');
+            return respond('Thank you for answering our questions. Goodbye!');
         }
 
         // Add a greeting if this is the first question
         if (questionIndex === 0) {
-            responseMessage += 'Thank you for taking our survey! ';
+            responseMessage = `Hi, ${candidateName}! Thank you for applying for the position of ${jobTitle} at ${companyName}. Please answer a few questions for our records.`;
         }
 
         // Add question text
@@ -65,6 +69,10 @@ module.exports = function(request, response) {
         // Add question instructions for special types
         if (question.type === 'boolean') {
             responseMessage += ' Type "yes" or "no".';
+        } else if (question.type === 'number') {
+            responseMessage += ' Please reply with a number (1, 2, 3).';
+        } else if (question.type === 'date') {
+            responseMessage += ' Please reply in the following format: MM/DD/YYYY.';
         }
 
         // reply with message
