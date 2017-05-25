@@ -1,4 +1,5 @@
 var mongoose = require('mongoose');
+var moment = require('moment');
 // Define survey response model schema
 var SurveyResponseSchema = new mongoose.Schema({
     // phone number of participant
@@ -51,7 +52,7 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
         if (currentQuestion.type === 'boolean') {
             // Anything other than '1' or 'yes' is a false
             var isTrue = input === '1' || input.toLowerCase() === 'yes';
-            questionResponse.answer = isTrue;
+            questionResponse.answer = isTrue ? 1 : 0;
         } else if (currentQuestion.type === 'number') {
             // Try and cast to a Number
             var num = Number(input);
@@ -64,6 +65,12 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
         } else if (input.indexOf('http') === 0) {
             // input is a recording URL
             questionResponse.recordingUrl = input;
+        } else if (currentQuestion.type === 'date') {
+            let dateVal = moment(input, 'MM/DD/YYYY');
+            if (dateVal) {
+                questionResponse.answer = dateVal.millisecond();
+            }
+            console.log('date answer', questionResponse.answer);
         } else {
             // otherwise store raw value
             questionResponse.answer = input;

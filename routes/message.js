@@ -72,6 +72,7 @@ module.exports = function(request, response) {
         // If question is null, we're done!
         if (!question) {
             addNoteToBullhorn(surveyResponse);
+            updateCandidate(surveyResponse);
             return respond('Thank you for answering our questions. Goodbye!');
         }
 
@@ -117,9 +118,33 @@ module.exports = function(request, response) {
         },
         function (error, response, body) {
             if (error) {
-            return console.error('upload failed:', error);
+            return console.error('PUT failed:', error);
             }
             console.log('Note addition successful!  Server responded with:', body);
+        });
+    }
+
+    function updateCandidate(surveyResponse) {
+        let url = `${bullhornCreds.restUrl}entity/Candidate/${bullhornDataDoc.candidate.id}?BhRestToken=${bullhornCreds.token}`;
+        let postData = {};
+        bullhornDataDoc.questions.forEach( (question, i) => {
+            let response = surveyResponse.responses[i];
+            if (response && question.syncToField && question.name ) {
+                postData[question.name] = response.answer;
+            }
+        });
+        console.log('candidate url, postData', url, postData);
+        req({
+            method: 'POST',
+            body: postData,
+            json: true,
+            url: url
+        },
+        function (error, response, body) {
+            if (error) {
+            return console.error('POST failed:', error);
+            }
+            console.log('Candidate update successful!  Server responded with:', body);
         });
     }
 
