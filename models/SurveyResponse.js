@@ -68,7 +68,7 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
         } else if (currentQuestion.type === 'date') {
             let dateVal = moment(input, 'MM/DD/YYYY');
             if (dateVal) {
-                questionResponse.answer = dateVal.millisecond();
+                questionResponse.answer = dateVal.valueOf();
             }
             console.log('date answer', questionResponse.answer);
         } else {
