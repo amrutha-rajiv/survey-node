@@ -7,7 +7,8 @@ let ClientCorporationSchema = new mongoose.Schema({
 
 let CandidateSchema = new mongoose.Schema({
     id: Number,
-    name: String
+    name: String,
+    mobile: String
 });
 
 let JobSubmissionSchema = new mongoose.Schema({
@@ -19,14 +20,16 @@ let JobOrderSchema = new mongoose.Schema({
     id: Number,
     title: String,
     clientCorporation: ClientCorporationSchema,
-    questions: [mongoose.Schema.Types.Mixed]
+    questions: [mongoose.Schema.Types.Mixed]    
 });
 
 // Define survey response model schema
 let BullhornDataSchema = new mongoose.Schema({
-   jobOrder: JobOrderSchema,
-   candidate: CandidateSchema,
-   jobSubmission: JobSubmissionSchema
+    questions: [mongoose.Schema.Types.Mixed],
+    mobile: String,
+    jobOrder: JobOrderSchema,
+    candidate: CandidateSchema,
+    jobSubmission: JobSubmissionSchema
 });
 
 // Export model

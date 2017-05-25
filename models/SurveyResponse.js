@@ -3,7 +3,6 @@ var mongoose = require('mongoose');
 var SurveyResponseSchema = new mongoose.Schema({
     // phone number of participant
     phone: String,
-
     // status of the participant's current survey response
     complete: {
         type: Boolean,
@@ -39,7 +38,6 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
         // If we have input, use it to answer the current question
         var responseLength = surveyResponse.responses.length
         var currentQuestion = surveyData[responseLength];
-
         // if there's a problem with the input, we can re-ask the same question
         function reask() {
             cb.call(surveyResponse, null, surveyResponse, responseLength);
@@ -70,6 +68,7 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
             // otherwise store raw value
             questionResponse.answer = input;
         }
+        questionResponse.rawInput = input;
 
         // Save type from question
         questionResponse.type = currentQuestion.type;
@@ -83,6 +82,7 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
         // Save response
         surveyResponse.save(function(err) {
             if (err) {
+                console.log('error saving surveyResponse!', err);
                 reask();
             } else {
                 cb.call(surveyResponse, err, surveyResponse, responseLength+1);
