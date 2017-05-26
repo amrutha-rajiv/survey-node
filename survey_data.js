@@ -4,8 +4,8 @@ module.exports = {
         {
             question: 'Are you able to provide the proof of right to work in the US?',
             // type: 'boolean'
-            shouldSync: 'Yes',
-            syncToField: 'First Name'
+            shouldSync: 'No',
+            failAnswer: 'No'
         },
         {
             question: 'Are you at least 21 years old?',
@@ -37,7 +37,7 @@ module.exports = {
             name: 'firstName'
         },
         {
-            label: 'Authorized to Work',
+            label: 'Authorized to Work in the US',
             type: 'boolean',
             name: 'workAuthorized'
         },

@@ -69,6 +69,16 @@ module.exports = function(request, response) {
                 + 'Please retry your message.');
         }
 
+        if ( questionIndex > 0 && surveyResponse) {
+            let prevQuestion = bullhornDataDoc.questions[questionIndex-1];
+            if(prevQuestion && prevQuestion.failAnswer && 
+                surveyResponse.responses[questionIndex-1] && surveyResponse.responses[questionIndex-1].rawInput &&
+                prevQuestion.failAnswer.toLowerCase() === surveyResponse.responses[questionIndex-1].rawInput.toLowerCase()) {
+                rejectCandidate(surveyResponse);
+                return respond('New phone, who dis?');
+            }
+        }
+
         // If question is null, we're done!
         if (!question) {
             addNoteToBullhorn(surveyResponse);
@@ -97,17 +107,17 @@ module.exports = function(request, response) {
         respond(responseMessage);
     }
 
-    function addNoteToBullhorn(surveyResponse) {
+    function addNoteToBullhorn(surveyResponse, rejected=false) {
         let url = `${bullhornCreds.restUrl}entity/Note?BhRestToken=${bullhornCreds.token}`;
         let note = {
-            comments: getCommentsFromSurvey(surveyResponse),
+            comments: getCommentsFromSurvey(surveyResponse, rejected),
             personReference: {
                 id: bullhornDataDoc.candidate.id
             },
             jobOrders: {
                 add: [bullhornDataDoc.jobOrder.id]
             },
-            action: 'Initial Screen'
+            action: 'Pre-Screen'
         };
         console.log('url & note',url,note);
         req({
@@ -123,6 +133,28 @@ module.exports = function(request, response) {
             console.log('Note addition successful!  Server responded with:', body);
         });
     }
+
+    function rejectCandidate(surveyResponse) {
+        addNoteToBullhorn(surveyResponse, true);
+        let url = `${bullhornCreds.restUrl}entity/JobSubmission/${bullhornDataDoc.jobSubmission.id}?BhRestToken=${bullhornCreds.token}`;
+        let postData = {
+            status: 'Rejected'
+        };
+        console.log('url & postData',url,postData);
+        req({
+            method: 'POST',
+            body: postData,
+            json: true,
+            url: url
+        },
+        function (error, response, body) {
+            if (error) {
+            return console.error('PUT failed:', error);
+            }
+            console.log('JobSubmission update successful!  Server responded with:', body);
+        });
+    }
+    
 
     function updateCandidate(surveyResponse) {
         let url = `${bullhornCreds.restUrl}entity/Candidate/${bullhornDataDoc.candidate.id}?BhRestToken=${bullhornCreds.token}`;
@@ -148,12 +180,15 @@ module.exports = function(request, response) {
         });
     }
 
-    function getCommentsFromSurvey(surveyResponse) {
+    function getCommentsFromSurvey(surveyResponse, rejected) {
         let sentences = [];
         surveyResponse.responses.forEach((res, i) => {
             sentences.push(`Question: ${bullhornDataDoc.questions[i].question}`);
             sentences.push(`Answer: ${res.rawInput}`);
         });
+        if (rejected) {
+            sentences.push('This candidate failed the pre-screen.')
+        }
         return sentences.join('\n');
     }
 };

@@ -9,9 +9,10 @@ var client = require('twilio')(twilioCreds.accountSid, twilioCreds.authToken);
 module.exports = function(request, response) {
 
     let data = request.body;
+    console.log('post data', data);
     if (data.jobSubmission && ['New Lead', 'Job Response', 'Web Response'].indexOf(data.jobSubmission.status) > -1 ) {
         data.mobile = `+1${data.candidate.mobile}`;
-        data.questions = survey.questions;//TODO: get this from the post body
+        // data.questions = survey.questions;//TODO: get this from the post body
         data.questions = getTypedQuestions(data.questions);
         console.log('body', request.body.candidate);
         //save data
@@ -49,6 +50,12 @@ function getTypedQuestions(questions) {
 }
 
 function getFirstQuestion(data) {
+    if (!data.jobOrder.clientCorporation) {
+        data.jobOrder.clientCorporation = {
+            id: 103489 ,
+            name: "Rivers Consulting"
+        };
+    }
     return `Hi, ${data.candidate.name}! 
     Thank you for applying for the position of ${data.jobOrder.title} at ${data.jobOrder.clientCorporation.name}. Please answer a few questions for our records.
     ${data.questions[0].question}`;
