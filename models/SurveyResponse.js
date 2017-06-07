@@ -9,7 +9,8 @@ var SurveyResponseSchema = new mongoose.Schema({
         type: Boolean,
         default: false
     },
-
+    fileUrl: String,
+    fileType: String,
     // record of answers
     responses: [mongoose.Schema.Types.Mixed]
 });
@@ -20,6 +21,7 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
     var surveyData = args.survey;
     var phone = args.phone;
     var input = args.input;
+    var fileInfo = args.fileInfo;
     var surveyResponse;
 
     // Find current incomplete survey
@@ -40,20 +42,20 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
         var responseLength = surveyResponse.responses.length
         var currentQuestion = surveyData[responseLength];
         // if there's a problem with the input, we can re-ask the same question
-        function reask() {
-            cb.call(surveyResponse, null, surveyResponse, responseLength);
+        function reask(overrideResponseMessage='') {
+            console.log('reasking')
+            cb.call(surveyResponse, null, surveyResponse, responseLength, overrideResponseMessage);
         }
-
         // If we have no input, ask the current question again
-        if (!input) return reask();
+        if (!input && !fileInfo) return reask();
 
         // Otherwise use the input to answer the current question
         var questionResponse = {};
-        if (currentQuestion.type === 'boolean') {
+        if (currentQuestion && currentQuestion.type === 'boolean') {
             // Anything other than '1' or 'yes' is a false
             var isTrue = input === '1' || input.toLowerCase() === 'yes';
             questionResponse.answer = isTrue ? 1 : 0;
-        } else if (currentQuestion.type === 'number') {
+        } else if (currentQuestion && currentQuestion.type === 'number') {
             // Try and cast to a Number
             var num = Number(input);
             if (isNaN(num)) {
@@ -62,15 +64,21 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
             } else {
                 questionResponse.answer = num;
             }
-        } else if (input.indexOf('http') === 0) {
+        } else if (input && input.indexOf('http') === 0) {
             // input is a recording URL
             questionResponse.recordingUrl = input;
-        } else if (currentQuestion.type === 'date') {
+        } else if (currentQuestion && currentQuestion.type === 'date') {
+            //check date format
+            if (!input.match(/\d{2}\/\d{2}\/\d{4}/)) {
+                return reask('Please make sure your answer is in this format: MM/DD/YYYY. For example - 07/01/2017');
+            }
             let dateVal = moment(input, 'MM/DD/YYYY');
             if (dateVal) {
                 questionResponse.answer = dateVal.valueOf();
             }
             console.log('date answer', questionResponse.answer);
+        } else if (fileInfo && fileInfo.url) {
+            questionResponse.answer = fileInfo.url;
         } else {
             // otherwise store raw value
             questionResponse.answer = input;
@@ -78,20 +86,24 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
         questionResponse.rawInput = input;
 
         // Save type from question
-        questionResponse.type = currentQuestion.type;
+        questionResponse.type = currentQuestion && currentQuestion.type;
         surveyResponse.responses.push(questionResponse);
-
+        if (fileInfo && fileInfo.url && fileInfo.type) {
+            surveyResponse.fileUrl = fileInfo.url;
+            surveyResponse.fileType = fileInfo.type;
+        }
         // If new responses length is the length of survey, mark as done
         if (surveyResponse.responses.length === surveyData.length) {
             surveyResponse.complete = true;
         }
-
+        console.log('surveyResponse', surveyResponse);
         // Save response
         surveyResponse.save(function(err) {
             if (err) {
                 console.log('error saving surveyResponse!', err);
                 reask();
             } else {
+                console.log('saved');
                 cb.call(surveyResponse, err, surveyResponse, responseLength+1);
             }
         });

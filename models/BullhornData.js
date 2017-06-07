@@ -29,7 +29,12 @@ let BullhornDataSchema = new mongoose.Schema({
     mobile: String,
     jobOrder: JobOrderSchema,
     candidate: CandidateSchema,
-    jobSubmission: JobSubmissionSchema
+    jobSubmission: JobSubmissionSchema,
+     // status of the participant's current survey response
+    complete: {
+        type: Boolean,
+        default: false
+    }
 });
 
 // Export model

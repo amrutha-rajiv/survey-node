@@ -39,7 +39,7 @@ module.exports = {
         {
             label: 'Authorized to Work in the US',
             type: 'boolean',
-            name: 'workAuthorized'
+            name: 'workAuthorizedInt'
         },
         {
             label: 'Years Experience',

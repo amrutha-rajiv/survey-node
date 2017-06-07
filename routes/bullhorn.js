@@ -57,6 +57,6 @@ function getFirstQuestion(data) {
         };
     }
     return `Hi, ${data.candidate.name}! 
-    Thank you for applying for the position of ${data.jobOrder.title} at ${data.jobOrder.clientCorporation.name}. Please answer a few questions for our records.
-    ${data.questions[0].question}`;
+    Thank you for applying for the position of ${data.jobOrder && data.jobOrder.title || ''} at ${data.jobOrder.clientCorporation.name}. Please answer a few questions for our records.
+    ${(data.questions && data.questions[0] && data.questions[0].question) || 'We have no questions for you, Byee!'}`;
 }

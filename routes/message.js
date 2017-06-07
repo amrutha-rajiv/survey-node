@@ -6,10 +6,18 @@ var bullhornCreds = require('../bullhorn_creds');
 var req = require('request');
 // Handle SMS submissions
 module.exports = function(request, response) {
-    // console.log('message body', request.body);
+    console.log('message body', request.body);
     var phone = request.body.From;
     var input = request.body.Body;
     var bullhornDataDoc = {};
+    var fileInfo;
+    if (request.body.MediaUrl0 && request.body.MediaContentType0) {
+        fileInfo = {
+            url: request.body.MediaUrl0,
+            type: request.body.MediaContentType0
+        };
+        console.log('fileinfo', fileInfo);
+    }
     // respond with message TwiML content
     function respond(message) {
         var twiml = new MessagingResponse();
@@ -17,9 +25,9 @@ module.exports = function(request, response) {
         response.type('text/xml');
         response.send(twiml.toString());
     }
-
     BullhornData.findOne({
-        mobile: phone
+        mobile: phone,
+        complete: false
     }, function(err, doc){
         if (doc){
             survey = doc.questions;
@@ -32,6 +40,7 @@ module.exports = function(request, response) {
             complete: false
         }, function(err, doc) {
             if (!doc) {
+                
                 var newSurvey = new SurveyResponse({
                     phone: phone
                 });
@@ -41,6 +50,7 @@ module.exports = function(request, response) {
                     SurveyResponse.advanceSurvey({
                         phone: phone,
                         input: input,
+                        fileInfo: fileInfo,
                         survey: survey
                     }, handleNextQuestion);
                 });
@@ -49,6 +59,7 @@ module.exports = function(request, response) {
                 SurveyResponse.advanceSurvey({
                     phone: phone,
                     input: input,
+                    fileInfo: fileInfo,
                     survey: survey
                 }, handleNextQuestion);
             }
@@ -57,7 +68,7 @@ module.exports = function(request, response) {
     }); 
 
     // Ask the next question based on the current index
-    function handleNextQuestion(err, surveyResponse, questionIndex) {
+    function handleNextQuestion(err, surveyResponse, questionIndex, overrideResponseMessage='') {
         var question = survey[questionIndex];
         var responseMessage = '';
         let candidateName = 'Jane';
@@ -69,8 +80,12 @@ module.exports = function(request, response) {
                 + 'Please retry your message.');
         }
 
+        if (overrideResponseMessage !== '') {
+            respond(overrideResponseMessage);
+        }
+
         if ( questionIndex > 0 && surveyResponse) {
-            let prevQuestion = bullhornDataDoc.questions[questionIndex-1];
+            let prevQuestion = bullhornDataDoc.questions && bullhornDataDoc.questions[questionIndex-1];
             if(prevQuestion && prevQuestion.failAnswer && 
                 surveyResponse.responses[questionIndex-1] && surveyResponse.responses[questionIndex-1].rawInput &&
                 prevQuestion.failAnswer.toLowerCase() === surveyResponse.responses[questionIndex-1].rawInput.toLowerCase()) {
@@ -81,57 +96,98 @@ module.exports = function(request, response) {
 
         // If question is null, we're done!
         if (!question) {
-            addNoteToBullhorn(surveyResponse);
-            updateCandidate(surveyResponse);
-            return respond('Thank you for answering our questions. Goodbye!');
+            bullhornDataDoc.complete = true;
+            bullhornDataDoc.save(function(err) {
+                if (err) {
+                    console.log('error saving bullhornDataDoc!', err);
+                } else {
+                    addNoteToBullhorn(surveyResponse);
+                    updateCandidate(surveyResponse);
+                    addFile(surveyResponse);
+                }
+                return respond('Thank you for answering our questions. Goodbye!');            
+            });
+        } else {
+            // Add a greeting if this is the first question
+            if (questionIndex === 0) {
+                responseMessage = `Hi, ${candidateName}! Thank you for applying for the position of ${jobTitle} at ${companyName}. Please answer a few questions for our records.`;
+            }
+
+            // Add question text
+            responseMessage += question.question;
+
+            // Add question instructions for special types
+            if (question.type === 'boolean') {
+                responseMessage += ' Type "yes" or "no".';
+            } else if (question.type === 'number') {
+                responseMessage += ' Please reply with a number (1, 2, 3).';
+            } else if (question.type === 'date') {
+                responseMessage += ' Please reply in the following format: MM/DD/YYYY.';
+            }
+
+            // reply with message
+            respond(responseMessage);
         }
-
-        // Add a greeting if this is the first question
-        if (questionIndex === 0) {
-            responseMessage = `Hi, ${candidateName}! Thank you for applying for the position of ${jobTitle} at ${companyName}. Please answer a few questions for our records.`;
-        }
-
-        // Add question text
-        responseMessage += question.question;
-
-        // Add question instructions for special types
-        if (question.type === 'boolean') {
-            responseMessage += ' Type "yes" or "no".';
-        } else if (question.type === 'number') {
-            responseMessage += ' Please reply with a number (1, 2, 3).';
-        } else if (question.type === 'date') {
-            responseMessage += ' Please reply in the following format: MM/DD/YYYY.';
-        }
-
-        // reply with message
-        respond(responseMessage);
     }
 
     function addNoteToBullhorn(surveyResponse, rejected=false) {
-        let url = `${bullhornCreds.restUrl}entity/Note?BhRestToken=${bullhornCreds.token}`;
-        let note = {
-            comments: getCommentsFromSurvey(surveyResponse, rejected),
-            personReference: {
-                id: bullhornDataDoc.candidate.id
+        if (bullhornDataDoc.candidate && bullhornDataDoc.jobOrder) {
+            let url = `${bullhornCreds.restUrl}entity/Note?BhRestToken=${bullhornCreds.token}`;
+            let note = {
+                comments: getCommentsFromSurvey(surveyResponse, rejected),
+                personReference: {
+                    id: bullhornDataDoc.candidate.id
+                },
+                jobOrders: {
+                    add: [bullhornDataDoc.jobOrder.id]
+                },
+                action: 'Pre-Screen'
+            };
+            console.log('url & note',url,note);
+            req({
+                method: 'PUT',
+                body: note,
+                json: true,
+                url: url
             },
-            jobOrders: {
-                add: [bullhornDataDoc.jobOrder.id]
+            function (error, response, body) {
+                if (error) {
+                return console.error('PUT failed:', error);
+                }
+                console.log('Note addition successful!  Server responded with:', body);
+            }); 
+        }
+        
+    }
+
+    function addFile(surveyResponse) {
+        if (surveyResponse.fileUrl && surveyResponse.fileType && bullhornDataDoc && bullhornDataDoc.candidate) {
+            let url = `${bullhornCreds.restUrl}file/Candidate/${bullhornDataDoc.candidate.id}?BhRestToken=${bullhornCreds.token}`;
+            let postData = {
+                name: 'License Image',
+                contentType: surveyResponse.fileType,
+                type: 'License',
+                description: '',
+                fileContent: surveyResponse.fileUrl,
+                fileType: 'LICENSE',
+                isExternal: 1,
+                externalID : 'Portfolio'
+            };
+            console.log('file url, postData', url, postData);
+            req({
+                method: 'PUT',
+                body: postData,
+                json: true,
+                url: url
             },
-            action: 'Pre-Screen'
-        };
-        console.log('url & note',url,note);
-        req({
-            method: 'PUT',
-            body: note,
-            json: true,
-            url: url
-        },
-        function (error, response, body) {
-            if (error) {
-            return console.error('PUT failed:', error);
-            }
-            console.log('Note addition successful!  Server responded with:', body);
-        });
+            function (error, response, body) {
+                if (error) {
+                return console.error('PUT failed:', error);
+                }
+                console.log('File upload successful!  Server responded with:', body);
+            });
+        }
+        
     }
 
     function rejectCandidate(surveyResponse) {
@@ -157,33 +213,35 @@ module.exports = function(request, response) {
     
 
     function updateCandidate(surveyResponse) {
-        let url = `${bullhornCreds.restUrl}entity/Candidate/${bullhornDataDoc.candidate.id}?BhRestToken=${bullhornCreds.token}`;
-        let postData = {};
-        bullhornDataDoc.questions.forEach( (question, i) => {
-            let response = surveyResponse.responses[i];
-            if (response && question.syncToField && question.name ) {
-                postData[question.name] = response.answer;
-            }
-        });
-        console.log('candidate url, postData', url, postData);
-        req({
-            method: 'POST',
-            body: postData,
-            json: true,
-            url: url
-        },
-        function (error, response, body) {
-            if (error) {
-            return console.error('POST failed:', error);
-            }
-            console.log('Candidate update successful!  Server responded with:', body);
-        });
+        if (bullhornDataDoc && bullhornDataDoc.candidate) {
+            let url = `${bullhornCreds.restUrl}entity/Candidate/${bullhornDataDoc.candidate.id}?BhRestToken=${bullhornCreds.token}`;
+            let postData = {};
+            bullhornDataDoc.questions.forEach( (question, i) => {
+                let response = surveyResponse.responses[i];
+                if (response && question.syncToField && question.name ) {
+                    postData[question.name] = response.answer;
+                }
+            });
+            console.log('candidate url, postData', url, postData);
+            req({
+                method: 'POST',
+                body: postData,
+                json: true,
+                url: url
+            },
+            function (error, response, body) {
+                if (error) {
+                return console.error('POST failed:', error);
+                }
+                console.log('Candidate update successful!  Server responded with:', body);
+            });
+        }
     }
 
     function getCommentsFromSurvey(surveyResponse, rejected) {
         let sentences = [];
-        surveyResponse.responses.forEach((res, i) => {
-            sentences.push(`Question: ${bullhornDataDoc.questions[i].question}`);
+        surveyResponse.responses && surveyResponse.responses.forEach((res, i) => {
+            sentences.push(`Question: ${bullhornDataDoc && bullhornDataDoc.questions && bullhornDataDoc.questions[i] && bullhornDataDoc.questions[i].question}`);
             sentences.push(`Answer: ${res.rawInput}`);
         });
         if (rejected) {
