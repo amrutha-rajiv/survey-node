@@ -77,8 +77,6 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
                 questionResponse.answer = dateVal.valueOf();
             }
             console.log('date answer', questionResponse.answer);
-        } else if (fileInfo && fileInfo.url) {
-            questionResponse.answer = fileInfo.url;
         } else {
             // otherwise store raw value
             questionResponse.answer = input;
@@ -91,6 +89,7 @@ SurveyResponseSchema.statics.advanceSurvey = function(args, cb) {
         if (fileInfo && fileInfo.url && fileInfo.type) {
             surveyResponse.fileUrl = fileInfo.url;
             surveyResponse.fileType = fileInfo.type;
+            questionResponse.rawInput = `<a href="${fileInfo.url}" target="_blank">Image Uploaded</a><br/>` ;
         }
         // If new responses length is the length of survey, mark as done
         if (surveyResponse.responses.length === surveyData.length) {

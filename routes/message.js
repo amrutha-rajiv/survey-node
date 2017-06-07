@@ -81,7 +81,7 @@ module.exports = function(request, response) {
         }
 
         if (overrideResponseMessage !== '') {
-            respond(overrideResponseMessage);
+            return respond(overrideResponseMessage);
         }
 
         if ( questionIndex > 0 && surveyResponse) {
@@ -89,8 +89,15 @@ module.exports = function(request, response) {
             if(prevQuestion && prevQuestion.failAnswer && 
                 surveyResponse.responses[questionIndex-1] && surveyResponse.responses[questionIndex-1].rawInput &&
                 prevQuestion.failAnswer.toLowerCase() === surveyResponse.responses[questionIndex-1].rawInput.toLowerCase()) {
-                rejectCandidate(surveyResponse);
-                return respond('New phone, who dis?');
+                bullhornDataDoc.complete = true;
+                bullhornDataDoc.save(function(err) {
+                    if (err) {
+                        console.log('error saving bullhornDataDoc!', err);
+                    } else {
+                       rejectCandidate(surveyResponse);
+                    }
+                    return respond('New phone, who dis?');   
+                });
             }
         }
 
